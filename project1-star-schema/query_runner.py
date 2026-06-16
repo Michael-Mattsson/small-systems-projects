@@ -42,6 +42,7 @@ print("Star schema built.")
 # Schema validation
 # ---------------------------------------------------------------------------
 
+
 print(con.execute("""
 SELECT table_schema, table_name
 FROM information_schema.tables
@@ -88,11 +89,12 @@ result = con.execute("""
     FROM raw_orders
     WHERE is_refunded = FALSE
 """).fetchdf()
-print(result)
+print(result.to_string(index=False))
 
 
 # Revenue by product category by quarter, excluding refunds
 
+print("\n\n" + "Revenue by product category by quarter, excluding refunds" + "\n")
 result = con.execute("""
     SELECT
         p.category,
@@ -104,10 +106,12 @@ result = con.execute("""
     GROUP BY p.category, EXTRACT(QUARTER FROM o.order_date)
     ORDER BY p.category, quarter
 """).fetchdf()
-print(result)
+print(result.to_string(index=False))
 
 
 # Top 10 customers by net revenue in 2023
+
+print("\n\n" + "Top 10 customers by net revenue in 2023" + "\n")
 result = con.execute("""
     SELECT
         c.customer_id,
@@ -120,9 +124,12 @@ result = con.execute("""
     ORDER BY net_revenue DESC
     LIMIT 10
 """).fetchdf()
-print(result)
+print(result.to_string(index=False)) 
+
 
 # Weekend vs weekday revenue comparison by region
+
+print("\n\n" + "Weekend vs weekday revenue comparison by region" + "\n")
 result = con.execute("""
     SELECT
         c.region,
@@ -133,10 +140,12 @@ result = con.execute("""
     WHERE o.is_refunded = FALSE
     GROUP BY c.region, day_type
 """).fetchdf()
-print(result)
+print(result.to_string(index=False)) 
 
 
 # Month-over-month revenue growth by category
+
+print("\n\n" + "Month-over-month revenue growth by category" + "\n")
 result = con.execute("""
     WITH monthly_revenue AS (
         SELECT
@@ -161,4 +170,4 @@ result = con.execute("""
         END AS revenue_growth_pct
     FROM monthly_revenue
 """).fetchdf()
-print(result)   
+print(result.to_string(index=False)) 
