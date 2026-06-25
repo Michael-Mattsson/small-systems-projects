@@ -112,7 +112,7 @@ def time_query(sql, runs=RUNS_PER_QUERY, discard_first=DISCARD_FIRST_RUN):
 # use con.execute(sql).fetchall otherwise some engines may defer work
 # multiply by 1000 to convert seconds to milliseconds, makes it easier to read and compare results
 
-print(f"{'Query':<6} {'Variant':<8} {'Mean (ms)':>12} {'Median (ms)':>14} {'Stdev (ms)':>12}")
+print("\n" + f"{'Query':<6} {'Variant':<8} {'Mean (ms)':>10} {'Median (ms)':>10} {'Stdev (ms)':>10}")
 print("-" * 56)
 
 # Above prints the header for the benchmark results, using alignments to format the output nicely
@@ -123,20 +123,26 @@ for qname, variants in queries.items():
     for variant, sql in variants.items():
         stats = time_query(sql)
         results[qname][variant] = stats
-        print(f"{qname:<6} {variant:<8} {stats['mean_ms']:>12.2f} "
-              f"{stats['median_ms']:>14.2f} {stats['stdev_ms']:>12.2f}")
+        print(f"{qname:<6} {variant:<8} {stats['mean_ms']:>10.2f} "
+              f"{stats['median_ms']:>10.2f} {stats['stdev_ms']:>10.2f}")
 
 print("\n" + "=" * 56)
 print("Summary — wide vs narrow ratio (narrow_time / wide_time)")
 print("Ratio > 1 means wide was faster. Ratio < 1 means narrow was faster.")
 print("=" * 56)
 
+print(f"{'Query':<8} {'Wide (ms)':>10} {'Narrow (ms)':>12} {'Ratio':>8} {'Winner':>8}")
+print("-" * 52)
+
 for qname in queries:
     wide_t = results[qname]["wide"]["mean_ms"]
     narrow_t = results[qname]["narrow"]["mean_ms"]
     ratio = narrow_t / wide_t if wide_t else float("nan")
     winner = "wide" if ratio > 1 else "narrow"
-    print(f"{qname}: wide={wide_t:.2f}ms  narrow={narrow_t:.2f}ms  "
-          f"ratio={ratio:.2f}  winner={winner}")
+    print(f"{qname:<8} " f"{wide_t:>10.2f} " f"{narrow_t:>12.2f} "
+          f"{ratio:>8.2f} " f"{winner:>8}")
+
+# qname are "Query 1", "Query 2", "Query 3", "Query 4"
+# variants are "wide" and "narrow"
 
 con.close()
