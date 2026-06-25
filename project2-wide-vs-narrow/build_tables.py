@@ -7,28 +7,26 @@ import os
 # Run this once before benchmark.py.
 # Rerun if Project 1's data is regenerated at a new scale.
 #
-# Input:  ../project1-star-schema/data/project1_finmart.duckdb
-# Output: data/project2_benchmark.duckdb
+# Input:  ../small-systems-projects/data/project1_finmart.duckdb
+# Output: ../small-systems-projects/data/project2_benchmark.duckdb
 # ---------------------------------------------------------------------------
 
-SOURCE_DB = "../project1-star-schema/data/project1_benchmark.duckdb"
-BENCHMARK_DB  = "data/project2_benchmark.duckdb"
+SOURCE_DB = "../small-systems-projects/data/project1_finmart.duckdb"
+BENCHMARK_DB  = "../small-systems-projects/data/project2_benchmark.duckdb"
 
-os.makedirs("data", exist_ok=True)
+os.makedirs("../small-systems-projects/data", exist_ok=True)
 
 con = duckdb.connect(BENCHMARK_DB)
 
 print("Attaching Project 1 database...")
 con.execute(f"ATTACH '{SOURCE_DB}' AS src (READ_ONLY)")
 
-print("Copying star schema tables...")
 con.execute("CREATE OR REPLACE TABLE dim_date     AS SELECT * FROM src.dim_date")
 con.execute("CREATE OR REPLACE TABLE dim_customer AS SELECT * FROM src.dim_customer")
 con.execute("CREATE OR REPLACE TABLE dim_product  AS SELECT * FROM src.dim_product")
 con.execute("CREATE OR REPLACE TABLE fct_orders   AS SELECT * FROM src.fct_orders")
 
 con.execute("DETACH src")
-print("Project 1 database detached.")
 
 print("Building wide_orders...")
 con.execute("""

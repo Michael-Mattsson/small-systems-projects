@@ -11,8 +11,9 @@ import statistics
 #   build_tables.sql.
 #
 # Methodology:
-#   - Each query runs 5 times. First run discarded (cold cache / compile
-#     overhead). Remaining 4 runs averaged.
+#   - Each query (copied from benchmark_queries.sql) runs 5 times. First run 
+#     discarded (cold cache / compile overhead), remove startup effects that are 
+#     not representative of normal query execution. Remaining 4 runs averaged.
 #   - Wall-clock time captured per run; mean, median, and stdev reported.
 #     Stdev matters — a single timing number without variance is not
 #     a credible benchmark result.
@@ -25,7 +26,7 @@ DISCARD_FIRST_RUN = True
 con = duckdb.connect(DB_PATH)
 
 queries = {
-    "Q1": {
+    "Query 1": {
         "wide": """
             SELECT category, SUM(net_revenue) AS revenue
             FROM wide_orders WHERE order_year = 2023 GROUP BY category
@@ -39,7 +40,7 @@ queries = {
             GROUP BY p.category
         """
     },
-    "Q2": {
+    "Query 2": {
         "wide": """
             SELECT region, category, DATE_TRUNC('month', date) AS m,
                    SUM(net_revenue) AS revenue,
@@ -59,7 +60,7 @@ queries = {
             GROUP BY c.region, p.category, DATE_TRUNC('month', d.date)
         """
     },
-    "Q3": {
+    "Query 3": {
         "wide": """
             SELECT product_name, SUM(net_revenue) AS revenue
             FROM wide_orders
@@ -75,7 +76,7 @@ queries = {
             GROUP BY p.name ORDER BY revenue DESC LIMIT 20
         """
     },
-    "Q4": {
+    "Query 4": {
         "wide": """
             SELECT region, segment, category,
                    SUM(net_revenue) AS revenue, AVG(net_revenue) AS avg_revenue
@@ -108,9 +109,13 @@ def time_query(sql, runs=RUNS_PER_QUERY, discard_first=DISCARD_FIRST_RUN):
         "stdev_ms": statistics.stdev(times) * 1000 if len(times) > 1 else 0,
     }
 
+# use con.execute(sql).fetchall otherwise some engines may defer work
+# multiply by 1000 to convert seconds to milliseconds, makes it easier to read and compare results
 
 print(f"{'Query':<6} {'Variant':<8} {'Mean (ms)':>12} {'Median (ms)':>14} {'Stdev (ms)':>12}")
 print("-" * 56)
+
+# Above prints the header for the benchmark results, using alignments to format the output nicely
 
 results = {}
 for qname, variants in queries.items():
@@ -125,6 +130,7 @@ print("\n" + "=" * 56)
 print("Summary — wide vs narrow ratio (narrow_time / wide_time)")
 print("Ratio > 1 means wide was faster. Ratio < 1 means narrow was faster.")
 print("=" * 56)
+
 for qname in queries:
     wide_t = results[qname]["wide"]["mean_ms"]
     narrow_t = results[qname]["narrow"]["mean_ms"]

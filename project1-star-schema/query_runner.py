@@ -32,7 +32,13 @@ def run(label, query):
 
 
 # Build warehouse
-with open("build_schema.sql", "r", encoding="utf-8") as f:
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+with open(
+    os.path.join(BASE_DIR, "build_schema.sql"),
+    "r",
+    encoding="utf-8"
+) as f:
     con.execute(f.read())
 
 print("Star schema built.")
