@@ -88,16 +88,6 @@ exact failure mode when temporal joins are incorrectly applied.
 - Revenue inflation quantification when date bounds are omitted
 - Integrity checks: no overlapping ranges, no duplicate is_current records
 
-## Scenarios
-
-| Customer | Change                  | Effective Date         | Versions |
-|----------|-------------------------|------------------------|----------|
-| 1001     | Regional relocation     | 2023-03-01             | 2        |
-| 2500     | Segment upgrade         | 2023-06-15             | 2        |
-| 5000     | Two sequential changes  | 2022-09-01, 2023-05-01 | 3        |
-
-Customer 5000 (3 versions) explicitly tests the hardest case —
-queries omitting date bounds return 3x row duplication for this customer.
 
 ## Files
 
@@ -110,14 +100,74 @@ queries omitting date bounds return 3x row duplication for this customer.
 | `point_in_time_queries.py` | Runs all queries, prints labeled output |
 | `notes.md` | Design decisions, failure mode documentation |
 
+
+## Project workflow
+
+1. Run build_scd2.py
+   • Creates initial SCD2 database.
+
+2. Run simulate_changes.py
+   • Applies customer changes.
+   • Runs integrity checks.
+
+3. Run point_in_time_queries.py
+   • Demonstrates correct temporal joins.
+   • Demonstrates broken joins.
+   • Shows revenue inflation.
+
+         CRM
+            │
+         Incoming customer feed
+            │
+         Hash comparison
+            │
+         Changed?
+         ┌───────┐
+         │  No   │──────► Ignore
+         └───────┘
+         ┌───────┐
+         │ Yes   │
+         └───────┘
+            │
+         Close current row
+            │
+         Insert new version
+            │
+         dim_customer_scd2
+            │
+         Temporal joins
+            │
+         Historical reporting
+
+
+## Scenarios
+
+| Customer | Change                  | Effective Date         | Versions |
+|----------|-------------------------|------------------------|----------|
+| 1001     | Regional relocation     | 2023-03-01             | 2        |
+| 2500     | Segment upgrade         | 2023-06-15             | 2        |
+| 5000     | Two sequential changes  | 2022-09-01, 2023-05-01 | 3        |
+
+Customer 5000 (3 versions) explicitly tests the hardest case —
+queries omitting date bounds return 3x row duplication for this customer.
+
+
 ## How to run
 
 ```bash
+# Step 1: build initial dimension (resets database to clean state)
 python build_scd2.py
-duckdb ../small-systems-projects/data/project3_scd2.duckdb \
-    < simulate_changes.sql
+
+# Step 2: simulate changes (hash detection → apply updates → validation)
+python simulate_changes.py
+
+# Step 3: run point-in-time analytical queries
 python point_in_time_queries.py
 ```
+
+Rerunning `build_scd2.py` resets the database. `simulate_changes.py`
+can then be rerun cleanly from the initial state.
+
 
 ## Key finding
 

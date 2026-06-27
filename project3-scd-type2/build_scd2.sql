@@ -29,8 +29,9 @@
 --   must always include date bounds — missing them causes row duplication.
 --   If fct_orders stores customer_key (surrogate, version-specific), the
 --   join is always correct by construction — each order links to exactly
---   one customer version. Project 1's fct_orders stores customer_key,
---   enabling both patterns depending on the analytical question.
+--   one customer version. Project 1's fact table stores customer_id. Because 
+--   no version-specific surrogate key exists in the fact table, point-in-time 
+--   joins must use the natural key together with the validity dates.
 -- -----------------------------------------------------------------------------
 
 CREATE OR REPLACE TABLE dim_customer_scd2 (
@@ -87,7 +88,6 @@ SELECT
 -- -----------------------------------------------------------------------------
 -- The correct temporal join pattern
 --
--- This is the query most commonly asked in senior analyst interviews.
 -- The date bounds on the JOIN are not optional — omitting them causes
 -- row duplication when a customer has multiple SCD2 records.
 -- -----------------------------------------------------------------------------
