@@ -75,7 +75,7 @@ Production SCD2 systems detect changes programmatically rather than
 applying them manually. The standard pattern:
 
 ```sql
-MD5(CONCAT(region, '|', country, '|', segment)) AS attribute_hash
+MD5(CONCAT_WS('|', region, country, segment)) AS attribute_hash
 ```
 
 Compare hashes between incoming data and the current dimension record.
