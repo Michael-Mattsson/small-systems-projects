@@ -34,7 +34,9 @@ DuckDB · SQL · Python (data generation) · Markdown (documentation)
 Surrogate keys · Conformed dimensions · Temporal joins · 
 Join cardinality · Grain decisions · Postmortem documentation
 
-------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------
+
 
 # Project 2 — Wide vs Narrow Table Benchmark
 
@@ -71,7 +73,9 @@ python benchmark.py
 ## Stack
 DuckDB · SQL · Python
 
-------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------
+
 
 # Project 3 — SCD Type 2 Customer Dimension
 
@@ -176,6 +180,61 @@ number of SCD2 versions per customer. This is silent — the query
 completes without error and produces plausible-looking numbers.
 Detection requires comparing against a known baseline or row count
 check before and after the join.
+
+## Stack
+DuckDB · SQL · Python
+
+
+----------------------------------------------------------------------------------------
+
+
+# Project 4 — Metric Inflation Debugging
+
+Diagnoses and fixes a many-to-many join bug that inflates revenue
+when joining FinMart's order data against a promotions table with
+a realistic multi-promotion-per-customer distribution.
+
+## Scenario
+
+A promotions feature was added to support concurrent customer
+campaigns. ~20% of customers have 2 or 3 simultaneously active
+promotions. A dashboard query joins orders to promotions without
+a grain guard, inflating revenue proportionally to promotion count
+for affected customers.
+
+## What this tests
+
+- Row count comparison as a join-fanout detection method
+- Correct quantification of inflation against a known baseline
+  (not a self-canceling formula)
+- Three valid fixes, each suited to a different business requirement
+- Verification that all fixes converge to the same correct total
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `build_promotions.py` | Generates promotions with controlled multi-promo distribution |
+| `build_promotions.sql` | Reference SQL + the broken query |
+| `detect_inflation.py` | Runs the 3-step diagnostic, prints measured inflation |
+| `detect_inflation.sql` | Reference SQL for detection |
+| `apply_fixes.py` | Applies all 3 fixes, verifies against baseline |
+| `apply_fixes.sql` | Reference SQL for all 3 fixes |
+| `incident_report.md` | Postmortem, populated with real measured numbers |
+| `notes.md` | Design rationale, connection to Projects 2 and 3 |
+
+## How to run
+
+```bash
+python build_promotions.py
+python detect_inflation.py
+python apply_fixes.py
+```
+
+## Key finding
+
+[Fill in after running — e.g. "Broken join inflated revenue by X% due
+to the 5% of customers holding 3 simultaneous promotions."]
 
 ## Stack
 DuckDB · SQL · Python
