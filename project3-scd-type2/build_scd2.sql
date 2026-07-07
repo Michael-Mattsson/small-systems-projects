@@ -29,10 +29,10 @@
 --   join is always correct by construction because each order links to
 --   exactly one customer version.
 --
---   Project 1's fact table already stores customer_id. This project extends
---   that existing schema rather than rebuilding the fact table, so
---   point-in-time joins use customer_id together with the validity dates
---   to identify the correct customer version.
+-- Project 3 extends Project 1 by creating a derived fact table that includes 
+-- customer_id and order_date. The original warehouse stored only customer_key, 
+-- but exposing customer_id simplifies demonstration of temporal joins while 
+-- preserving the original Project 1 database unchanged.
 -- -----------------------------------------------------------------------------
 
 CREATE OR REPLACE TABLE dim_customer_scd2 (
@@ -127,3 +127,16 @@ JOIN dim_customer_scd2 c
     ON o.customer_id = c.customer_id
 -- Result: row count = orders × SCD2 versions per customer
 -- Revenue is inflated by the average number of SCD2 records per customer
+
+
+-- -----------------------------------------------------------------------------
+-- Current-state view
+-- Exposes only the active version per customer, so downstream reporting
+-- that doesn't need historical logic can query current attributes without
+-- SCD2 date bounds.
+-- -----------------------------------------------------------------------------
+
+CREATE OR REPLACE VIEW dim_customer_current AS
+SELECT customer_key, customer_id, region, country, segment
+FROM dim_customer_scd2
+WHERE is_current = TRUE;

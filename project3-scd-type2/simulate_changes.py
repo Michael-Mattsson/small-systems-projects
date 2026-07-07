@@ -130,50 +130,6 @@ def get_next_customer_key():
     ).fetchone()[0]
 
 
-print("\n--- Step 2: Hash-Based Change Detection ---")
-print(f"{'Scenario':<30} {'Customer':>10} {'Change Detected':>16}")
-print("-" * 60)
-
-changes_to_apply = []
-next_key = get_next_customer_key()
-
-for update in incoming_updates:
-    current = get_current_state(update["customer_id"])
-
-    # Resolve None fields — carry forward current values
-    resolved = {
-        "region":  update["region"]   or current["region"],
-        "country": update["country"]  or current["country"],
-        "segment": update["segment"]  or current["segment"],
-    }
-
-    current_hash  = compute_hash(current["region"], current["country"], current["segment"])
-    incoming_hash = compute_hash(resolved["region"], resolved["country"], resolved["segment"])
-
-    changed = current_hash != incoming_hash
-
-    if changed:
-        print(f"{update['scenario']:<30} {update['customer_id']:>10}  CHANGE DETECTED")
-        print(f"    Current : Region={current['region']}, Country={current['country']}, Segment={current['segment']}")
-        print(f"    Incoming: Region={resolved['region']}, Country={resolved['country']}, Segment={resolved['segment']}")
-        print()
-
-        changes_to_apply.append({
-            "customer_id":   update["customer_id"],
-            "change_date":   update["change_date"],
-            "new_region":    resolved["region"],
-            "new_country":   resolved["country"],
-            "new_segment":   resolved["segment"],
-            "new_key":       next_key,
-            "scenario":      update["scenario"],
-        })
-        next_key += 1
-
-    else:
-        print(f"{update['scenario']:<30} {update['customer_id']:>10}  no change")
-        print()
-
-
 # ---------------------------------------------------------------------------
 # Step 3: Apply SCD2 updates for detected changes only
 #
@@ -205,18 +161,64 @@ def apply_customer_change(customer_id, change_date, region, country,
     """, [new_key, customer_id, region, country, segment, change_date])
 
 
-print(f"\n--- Step 3: Applying {len(changes_to_apply)} Detected Changes ---")
-for change in changes_to_apply:
-    apply_customer_change(
-        customer_id  = change["customer_id"],
-        change_date  = change["change_date"],
-        region       = change["new_region"],
-        country      = change["new_country"],
-        segment      = change["new_segment"],
-        new_key      = change["new_key"],
-    )
-    print(f"  Applied: {change['scenario']} (customer {change['customer_id']}, "
-          f"effective {change['change_date']})")
+# ---------------------------------------------------------------------------
+# Steps 2 & 3 run per record, not as two separate full passes.
+#
+# Why this matters: if Step 2 evaluated all incoming records first and
+# Step 3 applied all of them afterward, a customer with multiple changes
+# in the same batch (Scenario C: customer 5000) would have its second
+# change detected against stale pre-batch data instead of the state left
+# by its first change. Running detect-then-apply per record ensures each
+# change is always evaluated against the true current state at that
+# point in the batch — exactly what Scenario C is designed to test.
+# ---------------------------------------------------------------------------
+
+print("\n--- Step 2 & 3: Detecting and Applying Changes ---")
+print(f"{'Scenario':<30} {'Customer':>10} {'Result':>20}")
+print("-" * 65)
+
+changes_applied = []
+next_key = get_next_customer_key()
+
+for update in incoming_updates:
+
+    # --- Step 2 logic: detect ---
+    current = get_current_state(update["customer_id"])
+
+    # Resolve None fields — carry forward current values
+    resolved = {
+        "region":  update["region"]   or current["region"],
+        "country": update["country"]  or current["country"],
+        "segment": update["segment"]  or current["segment"],
+    }
+
+    current_hash  = compute_hash(current["region"], current["country"], current["segment"])
+    incoming_hash = compute_hash(resolved["region"], resolved["country"], resolved["segment"])
+    changed = current_hash != incoming_hash
+
+    if changed:
+        print(f"{update['scenario']:<30} {update['customer_id']:>10}  CHANGE DETECTED")
+        print(f"    Current : Region={current['region']}, Country={current['country']}, Segment={current['segment']}")
+        print(f"    Incoming: Region={resolved['region']}, Country={resolved['country']}, Segment={resolved['segment']}")
+
+        # --- Step 3 logic: apply ---
+        apply_customer_change(
+            customer_id = update["customer_id"],
+            change_date = update["change_date"],
+            region      = resolved["region"],
+            country     = resolved["country"],
+            segment     = resolved["segment"],
+            new_key     = next_key,
+        )
+        print(f"    Applied — effective {update['change_date']}\n")
+
+        changes_applied.append({**update, "new_key": next_key})
+        next_key += 1
+
+    else:
+        print(f"{update['scenario']:<30} {update['customer_id']:>10}  no change\n")
+
+print(f"Applied {len(changes_applied)} of {len(incoming_updates)} incoming records.")
 
 
 # ---------------------------------------------------------------------------
@@ -236,9 +238,11 @@ assert_check(
     "No duplicate is_current records per customer",
     """
     SELECT COUNT(*) FROM (
-        SELECT customer_id FROM dim_customer_scd2
+        SELECT customer_id 
+        FROM dim_customer_scd2
         WHERE is_current = TRUE
-        GROUP BY customer_id HAVING COUNT(*) > 1
+        GROUP BY customer_id 
+            HAVING COUNT(*) > 1
     )
     """
 )
@@ -246,8 +250,10 @@ assert_check(
 assert_check(
     "No open records with is_current = FALSE",
     """
-    SELECT COUNT(*) FROM dim_customer_scd2
-    WHERE valid_to IS NULL AND is_current = FALSE
+    SELECT COUNT(*) 
+    FROM dim_customer_scd2
+    WHERE valid_to IS NULL 
+        AND is_current = FALSE
     """
 )
 

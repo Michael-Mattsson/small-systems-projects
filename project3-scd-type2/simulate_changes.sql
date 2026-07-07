@@ -29,9 +29,10 @@ SELECT * FROM (VALUES
 
 -- -----------------------------------------------------------------------------
 -- Section 2: Hash-based change detection
--- Compare incoming attribute hash against current dimension hash. Comparing
--- hashes is more efficient than comparing each attribute individually, and it
--- allows for easy extension if new attributes are added to the dimension.
+-- Compare hashes of the tracked attributes from the incoming feed against the 
+-- current dimension version. Comparing hashes is more efficient than comparing 
+-- each attribute individually, and it allows for easy extension if new 
+-- attributes are added to the dimension.
 -- MD5 is fast, easy to compute and is available in all major databases.
 -- Rows where hashes differ require a new SCD2 version.
 -- -----------------------------------------------------------------------------
@@ -100,12 +101,14 @@ SELECT 'duplicate_is_current'      AS check_name, COUNT(*) AS violations
 FROM (
     SELECT customer_id FROM dim_customer_scd2
     WHERE is_current = TRUE
-    GROUP BY customer_id HAVING COUNT(*) > 1
+    GROUP BY customer_id 
+        HAVING COUNT(*) > 1
 );
 
 SELECT 'open_records_not_current'  AS check_name, COUNT(*) AS violations
 FROM dim_customer_scd2
-WHERE valid_to IS NULL AND is_current = FALSE;
+WHERE valid_to IS NULL 
+    AND is_current = FALSE;
 
 SELECT 'overlapping_ranges'        AS check_name, COUNT(*) AS violations
 FROM (

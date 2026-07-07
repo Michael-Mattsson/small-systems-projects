@@ -86,7 +86,8 @@ FROM base_customers
 
 # ---------------------------------------------------------------------------
 # Current-state view
-# Allows analysts to query current attributes without SCD2 date logic.
+# Useful because most reporting only needs current attributes and 
+# should not require SCD2 date logic.
 # Equivalent to WHERE is_current = TRUE but cleaner in downstream queries.
 # dim_customer_current provides Type-1 style access over a Type-2 dimension.
 # ---------------------------------------------------------------------------

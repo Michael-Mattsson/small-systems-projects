@@ -226,10 +226,11 @@ SELECT
     COUNT(DISTINCT customer_id)                          AS distinct_customers,
     ROUND(COUNT(*)::NUMERIC / COUNT(DISTINCT customer_id), 2)
                                                          AS avg_versions_per_customer,
-    MAX(
-        SELECT COUNT(*) FROM dim_customer_scd2 g
-        WHERE g.customer_id = dim_customer_scd2.customer_id
-    )                                                    AS max_versions_single_customer,
+    (SELECT MAX(version_count) FROM (
+        SELECT COUNT(*) AS version_count
+        FROM dim_customer_scd2
+        GROUP BY customer_id
+    ))                                                   AS max_versions_single_customer,
     SUM(CASE WHEN is_current    THEN 1 ELSE 0 END)       AS current_records,
     SUM(CASE WHEN valid_to IS NULL THEN 1 ELSE 0 END)    AS open_records,
     SUM(CASE WHEN is_current AND valid_to IS NOT NULL

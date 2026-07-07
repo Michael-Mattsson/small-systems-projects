@@ -16,9 +16,9 @@ or changed classification.
 
 ## Key design decisions
 
-**Customer attributes are deterministically generated** using modulo
-arithmetic on customer_id for reproducibility — the same input always
-produces the same dimension.
+**Customer attributes are inherited from Project 1's deterministic
+generation** (modulo arithmetic on customer_id) — Project 3 copies
+dim_customer unchanged rather than regenerating attributes.
 
 **fct_orders stores customer_id (natural key):**
 Because no version-specific surrogate key exists in the fact table,
@@ -79,7 +79,8 @@ MD5(CONCAT_WS('|', region, country, segment)) AS attribute_hash
 ```
 
 Compare hashes between incoming data and the current dimension record.
-Attribute hashes are used as a fast change detector. Actual attribute 
+Attribute hashes are used as a fast change detector rather than 
+comparing each tracked attribute individually. Actual attribute 
 values remain the source of truth.
 A changed hash triggers the two-step close/insert operation. An
 unchanged hash is a no-op. This avoids scanning full history and is
