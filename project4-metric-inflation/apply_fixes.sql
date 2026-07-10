@@ -29,7 +29,10 @@ WITH ranked_promos AS (
     FROM promotions
 ),
 latest_promo AS (
-    SELECT customer_id, promo_code, discount_pct
+    SELECT 
+        customer_id, 
+        promo_code, 
+        discount_pct
     FROM ranked_promos
     WHERE rn = 1
 )

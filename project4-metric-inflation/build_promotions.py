@@ -6,9 +6,11 @@ import os
 #
 # Generates a promotions table with a deliberately controlled multi-promo
 # distribution: most customers have 0 or 1 active promotion, a smaller
-# group has 2, and a small group has 3+. A promotions feature is added for 
-# a subset of customers running concurrent campaigns, and the join is 
-# written without a grain guard.
+# group has 2, and a small group has 3+.
+#
+# This mirrors a real scenario: a promotions feature launches for a
+# subset of customers running concurrent campaigns, and the dashboard
+# join was written without a grain guard.
 #
 # Input:  ../small-systems-projects/data/project1_finmart.duckdb
 # Output: ../small-systems-projects/data/project4_inflation.duckdb

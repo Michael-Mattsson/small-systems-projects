@@ -41,14 +41,21 @@ fix1 = get_revenue(
     "Fix 1 (dedupe before join)",
     """
     WITH ranked_promos AS (
-        SELECT customer_id, promo_code, discount_pct,
-               ROW_NUMBER() OVER (
-                   PARTITION BY customer_id ORDER BY promo_start DESC
-               ) AS rn
+        SELECT 
+            customer_id, 
+            promo_code, 
+            discount_pct,
+            ROW_NUMBER() OVER (
+                PARTITION BY customer_id 
+                ORDER BY promo_start DESC
+            ) AS rn
         FROM promotions
     ),
     latest_promo AS (
-        SELECT customer_id FROM ranked_promos WHERE rn = 1
+        SELECT 
+            customer_id 
+        FROM ranked_promos 
+        WHERE rn = 1
     )
     SELECT SUM(o.net_revenue)
     FROM fct_orders o
@@ -60,7 +67,10 @@ fix2 = get_revenue(
     "Fix 2 (aggregate before join)",
     """
     WITH promo_summary AS (
-        SELECT customer_id, COUNT(*) AS promo_count, MAX(discount_pct) AS max_discount
+        SELECT 
+            customer_id, 
+            COUNT(*) AS promo_count, 
+            MAX(discount_pct) AS max_discount
         FROM promotions GROUP BY customer_id
     )
     SELECT SUM(o.net_revenue)
@@ -74,9 +84,11 @@ fix3 = get_revenue(
     """
     WITH order_promo_attribution AS (
         SELECT
-            o.order_id, o.net_revenue,
+            o.order_id, 
+            o.net_revenue,
             ROW_NUMBER() OVER (
-                PARTITION BY o.order_id ORDER BY p.promo_start DESC
+                PARTITION BY o.order_id 
+                ORDER BY p.promo_start DESC
             ) AS rn
         FROM fct_orders o
         LEFT JOIN promotions p
@@ -84,7 +96,9 @@ fix3 = get_revenue(
             AND o.order_date >= p.promo_start
             AND o.order_date < p.promo_end
     )
-    SELECT SUM(net_revenue) FROM order_promo_attribution WHERE rn = 1
+    SELECT SUM(net_revenue) 
+    FROM order_promo_attribution 
+    WHERE rn = 1
     """
 )
 

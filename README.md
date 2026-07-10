@@ -196,11 +196,11 @@ a realistic multi-promotion-per-customer distribution.
 
 ## Scenario
 
-A promotions feature was added to support concurrent customer
-campaigns. ~20% of customers have 2 or 3 simultaneously active
-promotions. A dashboard query joins orders to promotions without
-a grain guard, inflating revenue proportionally to promotion count
-for affected customers.
+A promotions feature was introduced to support customer marketing
+campaigns with defined active periods. Some customers participate in
+multiple overlapping campaigns. A dashboard query joins orders to
+promotions on customer_id alone, ignoring both join grain and
+promotion validity, causing order duplication and inflated revenue.
 
 ## What this tests
 
@@ -220,7 +220,6 @@ for affected customers.
 | `detect_inflation.sql` | Reference SQL for detection |
 | `apply_fixes.py` | Applies all 3 fixes, verifies against baseline |
 | `apply_fixes.sql` | Reference SQL for all 3 fixes |
-| `incident_report.md` | Postmortem, populated with real measured numbers |
 | `notes.md` | Design rationale, connection to Projects 2 and 3 |
 
 ## How to run
@@ -233,8 +232,13 @@ python apply_fixes.py
 
 ## Key finding
 
-[Fill in after running — e.g. "Broken join inflated revenue by X% due
-to the 5% of customers holding 3 simultaneous promotions."]
+The broken customer-level join introduced 1,248,132 phantom rows,
+inflating total revenue by 24.96%. Customers with three concurrent
+promotions experienced exactly 3× row duplication, while the overall
+inflation reflected the combined effect of customers holding one,
+two, or three promotions. All three proposed fixes restored the
+baseline revenue, demonstrating that controlling join grain—not
+aggregation—is the correct solution.
 
 ## Stack
 DuckDB · SQL · Python

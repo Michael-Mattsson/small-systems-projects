@@ -30,6 +30,29 @@ relationship has the same resolution rule.
 
 ---
 
+## A subtlety in Fix 3's verification
+
+Fix 3's revenue total matches the baseline whether or not `promo_end`
+bounds are included in the join — `ROW_NUMBER() ... WHERE rn = 1`
+already guarantees exactly one row per order regardless of the date
+filter, so SUM(net_revenue) is correct either way.
+
+What the date bounds actually fix is *attribution correctness*, not
+revenue correctness: without `promo_end`, Fix 3 would attribute every
+order to whichever promotion has the latest `promo_start` overall,
+even if that promotion wasn't active yet (or was already over) at the
+time the order was placed. With both `promo_start` and `promo_end`
+bounding the join, `promo_code` reflects the promotion genuinely
+active when the order occurred.
+
+This is a useful distinction to hold onto: a fix can produce the
+correct aggregate while still being wrong about the underlying
+attribution. Revenue verification alone would not have caught this —
+it requires checking that `promo_code` values make temporal sense,
+not just that `SUM(net_revenue)` matches the baseline.
+
+---
+
 ## Reusable guard function
 
 ```python
