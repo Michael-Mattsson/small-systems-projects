@@ -78,21 +78,13 @@ print(storage)
 section("Latest Snapshot Activity")
 
 activity = con.execute("""
-
-SELECT
-
-MAX(night_number) AS latest_snapshot,
-
-COUNT(*)          AS rows_changed
-
-FROM incremental_deltas
-
-WHERE night_number =
-(
-SELECT MAX(night_number)
-FROM incremental_deltas
-)
-
+    SELECT 
+        MAX(night_number)                               AS latest_snapshot,
+        COUNT(*)                                        AS rows_changed
+    FROM incremental_deltas
+    WHERE night_number = (SELECT MAX(night_number)
+                           FROM incremental_deltas
+                          )
 """).fetchdf()
 
 print(activity)
@@ -105,26 +97,17 @@ print(activity)
 section("Warnings")
 
 warnings = con.execute("""
-
-SELECT
-
-night_number,
-status
-
-FROM snapshot_job_history
-
-WHERE status='failed'
-
-ORDER BY night_number
-
+    SELECT
+        night_number,
+        status
+    FROM snapshot_job_history
+    WHERE status='failed'
+    ORDER BY night_number
 """).fetchdf()
 
 if len(warnings) == 0:
-
     print("No active warnings.")
-
 else:
-
     print(warnings)
 
 
@@ -135,40 +118,23 @@ else:
 section("Pipeline Health")
 
 failed = con.execute("""
-
-SELECT COUNT(*)
-
-FROM snapshot_job_history
-
-WHERE status='failed'
-
+    SELECT COUNT(*)
+    FROM snapshot_job_history
+    WHERE status='failed'
 """).fetchone()[0]
 
 duplicates = con.execute("""
-
-SELECT COUNT(*)
-
-FROM
-(
-SELECT customer_id
-
-FROM periodic_snapshots
-
-GROUP BY
-customer_id,
-night_number
-
-HAVING COUNT(*)>1
-)
-
+    SELECT COUNT(*)
+    FROM (SELECT customer_id
+          FROM periodic_snapshots
+          GROUP BY customer_id, night_number
+            HAVING COUNT(*)>1
+         )
 """).fetchone()[0]
 
 latest_snapshot = con.execute("""
-
-SELECT MAX(night_number)
-
-FROM periodic_snapshots
-
+    SELECT MAX(night_number)
+    FROM periodic_snapshots
 """).fetchone()[0]
 
 print(f"Latest Snapshot : Night {latest_snapshot}")

@@ -48,7 +48,7 @@ official_max_delta = con.execute("""
 total_customers = con.execute("SELECT COUNT(*) FROM customer_baseline").fetchone()[0]
 threshold = total_customers * 0.05  # more than 5% changing in one night is suspicious
 
-check("Official incremental_deltas — max single-night delta within bounds",
+run("Official incremental_deltas — max single-night delta within bounds",
       official_max_delta < threshold,
       f"largest delta = {official_max_delta} rows, threshold = {threshold:.0f}")
 
@@ -91,7 +91,7 @@ try:
             GROUP BY customer_id, night_number HAVING COUNT(*) > 1
         )
     """).fetchone()[0]
-    check("retry_deltas (from idempotent_retry.py Scenario 2) — no duplicates",
+    run("retry_deltas (from idempotent_retry.py Scenario 2) — no duplicates",
           retry_dupes == 0, f"{retry_dupes} duplicates found")
     if retry_dupes > 0:
         print("        -> This check would have blocked the naive retry's")
@@ -142,7 +142,7 @@ official_night20 = "SELECT customer_id, region, country, segment FROM periodic_s
 checksum_independent = table_checksum(con, independent_recompute)
 checksum_official    = table_checksum(con, official_night20)
 
-check("Night 20 — official snapshot matches independent recomputation",
+run("Night 20 — official snapshot matches independent recomputation",
       checksum_independent == checksum_official,
       f"independent={checksum_independent}, official={checksum_official}")
 
@@ -158,7 +158,7 @@ delta_stats = con.execute("""
 avg_delta = delta_stats["avg_delta"]
 anomaly_threshold = max(avg_delta * 5, 10)  # 5x average, floor of 10 rows
 
-check("Official incremental_deltas — no anomalous night (>5x average delta size)",
+run("Official incremental_deltas — no anomalous night (>5x average delta size)",
       official_max_delta < anomaly_threshold,
       f"avg={avg_delta:.1f}, max={official_max_delta}, threshold={anomaly_threshold:.1f}")
 
@@ -172,7 +172,7 @@ naive_bug_delta_size = con.execute("""
     )
 """).fetchone()[0]
 
-check("Hypothetical naive-checkpoint Night 13 delta — would be flagged",
+run("Hypothetical naive-checkpoint Night 13 delta — would be flagged",
       naive_bug_delta_size < anomaly_threshold,
       f"hypothetical size={naive_bug_delta_size}, threshold={anomaly_threshold:.1f}")
 print("        -> This check fails on the naive-bug scenario, exactly as it")
