@@ -1,119 +1,169 @@
-
 # FinMart Star Schema — Modeling Decisions
 
-This document records the grain, key decisions, and rejected alternatives
-for each table in the FinMart star schema. It is intended to serve as
-internal reference for anyone maintaining or extending this model.
+This document records the modeling decisions behind the FinMart star schema, including the grain of each table, key design choices, rejected alternatives, and known limitations. It serves as a reference for understanding why the model was designed this way rather than simply documenting its structure.
 
---------
+## Implementation Note
 
+The SQL scripts are the source of truth for schema creation and data transformations. Python is responsible for orchestration, data generation, query execution, and validation, while business logic remains in SQL. Separating SQL from Python makes the transformation logic easier to review, maintain, and extend without modifying application code.
+
+---
 
 ## dim_date
---------
-**Grain:** One row per calendar date present in the order history.
 
-**Date key format:** Integer YYYYMMDD (e.g. 20230615).
-Integer keys are faster to join on than DATE types and are compatible with 
-downstream BI tools that expect integer surrogate keys on date dimensions.
+### Grain
 
-**is_weekend flag:** Pre-calculated in the dimension rather than derived
-in analytical queries. Consistent definition across all consumers — avoids
-possible conflicting DAYOFWEEK logic
+One row per calendar date present in the order history.
 
-**Rejected alternative:** Using order_date directly as the FK in fct_orders.
-Rejected because DATE-to-DATE joins are slower than integer key lookups at
-scale and prevent the use of pre-aggregated date attributes (quarter, month,
-is_weekend) without repeated EXTRACT calls in every downstream query.
+### Key Decisions
 
-**Known limitation:** Dimension only covers dates present in raw_orders.
-A production dim_date would cover a fixed multi-year range regardless of
-data presence, so that dashboards with date filters never return NULL for
-dates with no orders.
+**Date key format:** Integer `YYYYMMDD` (e.g. `20230615`).
 
+Using an integer surrogate key provides efficient joins and is widely compatible with downstream BI tools that commonly use integer date keys.
+
+**Pre-computed calendar attributes:**
+
+Attributes such as year, quarter, month, day, and `is_weekend` are calculated during dimension creation rather than during analysis. This provides consistent definitions across all analytical queries and avoids repeatedly applying date functions.
+
+### Rejected Alternatives
+
+**Using `order_date` directly as the foreign key in `fct_orders`.**
+
+Rejected because DATE-to-DATE joins are generally less efficient than integer key joins at scale and require downstream queries to repeatedly derive calendar attributes.
+
+### Known Limitations
+
+The dimension only contains dates that appear in the source data.
+
+A production data warehouse would typically generate a complete calendar covering multiple years so reports can display periods with zero sales instead of missing dates.
+
+---
 
 ## dim_customer
-------------
-**Grain:** One row per customer — current attributes only
 
-**Surrogate key:** customer_key generated via ROW_NUMBER() ordered by
-customer_id. Natural keys from source systems (customer_id) change 
-meaning when customers are merged, deleted, or migrated. Surrogate 
-keys decouple the warehouse model from sourcesystem changes.
+### Grain
 
-**Natural key retained:** customer_id is kept as a business key column
-for traceability back to source systems. It is not used as a FK in
-fact tables.
+One row per customer containing the current customer attributes.
 
-**SCD Type 0 (no history) — deliberate simplification:** Customer region,
-country, and segment are treated as static in this project.
-Project 3 (SCD Type 2) extends this dimension to preserve attribute
-history and support point-in-time reconstruction.
+### Key Decisions
 
-**Rejected alternative:** Embedding region and country directly in
-fct_orders at load time (denormalization). Rejected because it would
-require backfilling the entire fact table when customer attributes change,
-and prevents point-in-time historical analysis when SCD Type 2 is
-introduced.
+**Surrogate key:**
 
+`customer_key` is used instead of the business identifier (`customer_id`) to decouple warehouse relationships from source-system identifiers.
+
+**Business key retained:**
+
+`customer_id` remains in the dimension for traceability back to the source system but is not referenced by fact tables.
+
+**SCD Type 0 (current-state only):**
+
+Customer attributes such as region, country, and segment are treated as static for this project.
+
+Project 3 extends this model to a Slowly Changing Dimension (Type 2) to preserve historical customer attribute changes.
+
+### Rejected Alternatives
+
+**Embedding customer attributes directly in `fct_orders`.**
+
+Rejected because changes to customer information would require updating historical fact records and would complicate future implementation of SCD Type 2.
+
+### Known Limitations
+
+Customer history is intentionally not preserved. Historical reporting assumes customer attributes never change.
+
+---
 
 ## dim_product
------------
-**Grain:** One row per product.
 
-**Surrogate key:** product_key generated via ROW_NUMBER() ordered by
-product_id. Same reasoning as dim_customer — decouples warehouse FK
-relationships from source system natural keys.
+### Grain
 
-**cost_price stored in dimension, not fact table:** Cost is a product
-attribute, not an order attribute. Storing it in the dimension means
-cost can be updated centrally without touching the fact table. Margin
-calculations (unit_price - cost_price) are performed at query time by
-joining to the dimension.
+One row per product.
 
-**category and subcategory in dimension, not fact table:** Product
-groupings belong in the dimension. Storing them in fct_orders would
-require updating millions of fact rows if a product is recategorized.
-Dimension updates propagate automatically to all historical queries.
+### Key Decisions
 
-**Rejected alternative:** Storing cost_price in fct_orders at order
-time to lock in historical cost. Rejected for this exercise because
-the synthetic data has no cost history — cost is static per product.
-In a production model with vendor pricing changes, locking cost at
-order time in the fact table would be the correct approach. I would 
-snapshot cost into the fact table (or use a historical cost dimension) 
-to preserve accurate margin calculations over time.
+**Surrogate key:**
 
+`product_key` replaces the source-system product identifier to provide stable warehouse relationships.
+
+**Product attributes stored in the dimension:**
+
+Attributes such as category, subcategory, and `cost_price` belong to the product rather than individual sales transactions.
+
+Keeping these attributes in the dimension avoids unnecessary duplication and allows product information to be updated centrally.
+
+**Margin calculation:**
+
+Margin is calculated during analysis by combining fact table revenue with product cost from the dimension.
+
+### Rejected Alternatives
+
+**Storing `cost_price` in the fact table.**
+
+Rejected because the synthetic dataset assumes product costs are static.
+
+In a production environment with changing supplier costs, historical costs would typically be captured at transaction time (or through a historical cost dimension) to preserve accurate historical margins.
+
+### Known Limitations
+
+The model assumes product costs never change over time.
+
+---
 
 ## fct_orders
-----------
-**Grain:** One row per order line item.
 
-**Line-item grain chosen over order grain:** The analytical requirements
-include product-level and category-level revenue breakdowns. Order grain
-would aggregate across products, making it impossible to answer
-"revenue by product category" without a separate line-item table.
-Line-item grain supports all required queries; order grain does not.
+### Grain
 
-**Foreign keys reference surrogate keys:** date_key, customer_key,
-and product_key all reference surrogate keys in their respective
-dimensions. Natural keys (customer_id, product_id) from raw_orders
-are not carried into the fact table — they exist only in dimensions
-for source traceability.
+One row per order line item.
 
-**gross_revenue and net_revenue precomputed at load time:**
-Consistent metric definitions enforced at the model layer, not the
-query layer. Every analyst querying net_revenue gets the same number
-because the refund logic (CASE WHEN is_refunded THEN 0) is applied
-once during load, not reimplemented per query.
+### Key Decisions
 
-**is_refunded retained as a flag:** Kept in the fact table so analysts
-can filter, count, or analyze refund patterns independently of the
-revenue metrics. Dropping it after computing net_revenue would
-prevent refund rate analysis.
+**Line-item grain:**
 
-**Rejected alternative:** Calculating revenue ad-hoc in queries as
-quantity * unit_price with inline refund filters. Rejected because
-different analysts apply refund logic differently — some exclude
-refunded rows entirely, some zero the revenue, some leave gross
-revenue intact. Precomputing both gross_revenue and net_revenue
-makes the distinction explicit and governed.
+The fact table records one row per purchased product rather than one row per order.
+
+This supports product-level, category-level, and customer-level analysis without requiring additional transactional tables.
+
+**Surrogate foreign keys:**
+
+The fact table references `date_key`, `customer_key`, and `product_key`.
+
+Natural source-system identifiers remain only within the dimensions.
+
+**Pre-computed revenue metrics:**
+
+Both `gross_revenue` and `net_revenue` are calculated during loading.
+
+This ensures revenue definitions remain consistent across all analytical queries instead of relying on each analyst to implement refund logic independently.
+
+**Refund flag retained:**
+
+`is_refunded` remains available for operational analysis, allowing refund rates and refund behaviour to be analysed independently of revenue calculations.
+
+### Rejected Alternatives
+
+**Calculating revenue entirely within analytical queries.**
+
+Rejected because revenue definitions become inconsistent when each analyst implements refund handling differently.
+
+Pre-computing governed metrics provides a single, consistent definition for reporting.
+
+### Known Limitations
+
+The model assumes refunds fully negate revenue.
+
+More complex production scenarios (partial refunds, multiple refund events, exchanges, or adjustments) would require additional transactional modelling.
+
+---
+
+## Overall Design Philosophy
+
+This project intentionally prioritises clarity and analytical best practices over production-scale complexity.
+
+The model demonstrates:
+
+* Star schema modelling with clearly defined grain.
+* Separation of fact and dimension responsibilities.
+* Use of surrogate keys for warehouse relationships.
+* Consistent metric definitions through ETL rather than analytical queries.
+* Documentation of design decisions and rejected alternatives to make modelling choices explicit.
+
+Future projects build on these foundations by introducing historical dimensions (SCD Type 2), incremental loading, and more production-oriented warehouse patterns.
