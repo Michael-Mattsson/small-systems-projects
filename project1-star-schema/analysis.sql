@@ -34,7 +34,6 @@ ORDER BY
 
 -- QUERY: Top 10 Customers by Net Revenue (2023)
 
-
 SELECT
     c.customer_id,
     c.region,
@@ -78,8 +77,6 @@ GROUP BY
 ORDER BY
     c.region, day_type;
 
-
--- QUERY: Month-over-Month Revenue Growth by Category
 
 -- QUERY: Month-over-Month Revenue Growth by Category
 

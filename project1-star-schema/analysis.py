@@ -45,10 +45,19 @@ for section in sections[1:]:
 # ---------------------------------------------------------------------------
 
 for title, query in queries:
+
     print("\n" + "=" * 90)
     print(title)
     print("=" * 90)
-    df = con.execute(query).fetchdf()
-    print(df.to_string(index=False))
 
-con.close()
+    print("QUERY BEING EXECUTED:")
+    print(query)
+    print("=" * 90)
+
+    result = con.execute(query)
+
+    print("EXECUTE RESULT:", result)
+
+    df = result.fetchdf()
+
+    print(df.to_string(index=False))
